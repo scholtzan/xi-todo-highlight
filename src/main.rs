@@ -7,7 +7,7 @@ use regex::Regex;
 use std::path::Path;
 
 use crate::xi_core::ConfigTable;
-use crate::xi_core::annotations::{AnnotationSlice, AnnotationType, ToAnnotation, AnnotationRange};
+use crate::xi_core::annotations::{AnnotationSlice, AnnotationType, AnnotationRange};
 use xi_plugin_lib::{mainloop, ChunkCache, Plugin, View};
 use xi_rope::interval::Interval;
 use xi_rope::rope::RopeDelta;
@@ -33,7 +33,7 @@ impl Plugin for TodoHighlightPlugin {
         &mut self,
         view: &mut View<Self::Cache>,
         delta: Option<&RopeDelta>,
-        edit_type: String,
+        _edit_type: String,
         _author: String,
     ) {
         if let Some(delta) = delta {
@@ -77,7 +77,7 @@ impl TodoHighlightPlugin {
             let start = view.offset_of_line(a).unwrap();
             let end = view.offset_of_line(b).unwrap() - start;
 
-            view.update_annotations(start, end, vec![AnnotationSlice::new(annotation_type, ranges, None)]);
+            view.update_annotations(start, end, &vec![AnnotationSlice::new(annotation_type, ranges, None)]);
         }
     }
 }
