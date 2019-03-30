@@ -7,10 +7,14 @@ use regex::Regex;
 use std::path::Path;
 
 use crate::xi_core::ConfigTable;
-use crate::xi_core::annotations::{AnnotationSlice, AnnotationType, AnnotationRange};
+use crate::xi_core::annotations::AnnotationType;
 use xi_plugin_lib::{mainloop, ChunkCache, Plugin, View};
+use crate::xi_core::plugin_rpc::DataSpan;
 use xi_rope::interval::Interval;
 use xi_rope::rope::RopeDelta;
+use serde_json::json;
+
+
 
 struct TodoHighlightPlugin {
     regex: Regex
@@ -32,14 +36,11 @@ impl Plugin for TodoHighlightPlugin {
     fn update(
         &mut self,
         view: &mut View<Self::Cache>,
-        delta: Option<&RopeDelta>,
+        _delta: Option<&RopeDelta>,
         _edit_type: String,
         _author: String,
     ) {
-        if let Some(delta) = delta {
-            let (iv, _) = delta.summary();
-            self.find_todos(view, iv);
-        }
+        self.find_todos(view, Interval::new(0, view.get_buf_size()));
     }
 }
 
@@ -54,30 +55,26 @@ impl TodoHighlightPlugin {
         let start_line = view.line_of_offset(0).expect("Error getting line");
         let end_line = view.line_of_offset(view.get_buf_size()).expect("Error getting line");
 
-        let mut ranges: Vec<AnnotationRange> = Vec::new();
+        let mut spans: Vec<DataSpan> = Vec::new();
 
         for line_nr in start_line..=end_line {
-            if let Ok(line) = view.get_line(line_nr) {
-                if let Some(mat) = self.regex.find(line) {
-                    ranges.push(AnnotationRange {
-                        start_line: line_nr,
-                        start_col: mat.start(),
-                        end_line: line_nr,
-                        end_col: mat.end()
-                    });
-                }
+            let line_offset = view.offset_of_line(line_nr).unwrap();
+            let line = view.get_line(line_nr).unwrap();
+            if let Some(mat) = self.regex.find(line) {
+                let start = line_offset + mat.start();
+                let end = line_offset + mat.end();
+                spans.push(DataSpan {
+                    start,
+                    end,
+                    data: json!(null)
+                });
             }
         }
 
         let annotation_type = AnnotationType::Other("todo".to_string());
 
-        if ranges.len() > 0 {
-            let a = view.line_of_offset(interval.start).unwrap();
-            let b = view.line_of_offset(interval.end).unwrap() + 1;
-            let start = view.offset_of_line(a).unwrap();
-            let end = view.offset_of_line(b).unwrap() - start;
-
-            view.update_annotations(start, end, &vec![AnnotationSlice::new(annotation_type, ranges, None)]);
+        if spans.len() > 0 {
+            view.update_annotations(interval.start(), interval.end(),spans, annotation_type);
         }
     }
 }
